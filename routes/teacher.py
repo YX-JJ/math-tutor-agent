@@ -344,7 +344,7 @@ h3 { font-size: 14px; color: #555; }
 ol, ul { margin-top: 4px; }
 li { margin-bottom: 4px; }
 </style></head><body>''']
-    html_parts.append(f'<h1>八年级数学习题集</h1>')
+    html_parts.append(f'<h1>初中数学习题集</h1>')
     html_parts.append(f'<p style="text-align:center; color:#888;">共 {len(selected)} 道题目</p>')
 
     for i, p in enumerate(selected, 1):
@@ -378,7 +378,7 @@ li { margin-bottom: 4px; }
     return send_file(buf,
                      mimetype='application/msword',
                      as_attachment=True,
-                     attachment_filename='八年级数学习题集.doc')
+                     attachment_filename='初中数学习题集.doc')
 
 
 # ── Wrong Problem Collection ──

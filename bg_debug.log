@@ -1,0 +1,8 @@
+2026-05-16T14:22:02.443888 Starting background_server, mode=fixed, cwd=D:\Users\6536\Desktop\8年级教学智能体
+2026-05-16T14:22:02.444889 python_exe=D:\Users\6536\Desktop\8年级教学智能体\python_portable\python.exe
+2026-05-16T14:22:02.545834 Flask started, PID=2472
+2026-05-16T14:22:05.546303 cf_exe=D:\Users\6536\Desktop\8年级教学智能体\cloudflared.exe, exists=True
+2026-05-16T14:22:05.548302 config.yml written
+2026-05-16T14:22:06.314323 cloudflared fixed started, PID=16432
+2026-05-16T14:22:09.315664 public_url.txt written (fixed)
+2026-05-16T14:22:09.316663 service_pids.txt written

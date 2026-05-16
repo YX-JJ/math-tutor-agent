@@ -39,7 +39,7 @@ if __name__ == '__main__':
     hostname = socket.gethostname()
     local_ip = socket.gethostbyname(hostname)
     print('=' * 50)
-    print('  八年级数学教学智能体')
+    print('  初中数学教学智能体')
     print('  本机访问: http://localhost:5000')
     print(f'  局域网访问: http://{local_ip}:5000')
     print('  默认账号: admin / admin123')

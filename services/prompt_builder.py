@@ -100,7 +100,7 @@ class PromptBuilder:
         )
 
         messages = [
-            {"role": "system", "content": "你是一位资深的八年级数学题库设计专家。请严格按照JSON格式返回结果。"},
+            {"role": "system", "content": "你是一位资深的初中数学题库设计专家。请严格按照JSON格式返回结果。"},
             {"role": "user", "content": user_prompt},
         ]
         return messages

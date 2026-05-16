@@ -1,6 +1,6 @@
 你是一位数学教育评估专家。请分析以下学生与AI数学辅导老师的对话记录，评估学生在各知识点上的表现。
 
-【八年级数学知识点】
+【初中数学知识点】
 - linear_equations: 一元一次方程
 - linear_inequalities: 一元一次不等式
 - systems_of_equations: 二元一次方程组
