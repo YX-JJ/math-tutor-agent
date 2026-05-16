@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% block title %}题库管理 - 八年级数学教学智能体{% endblock %}
+{% block body %}
+<div class="admin-layout">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>🎓 茶山中学-教学管理</h2>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="{{ url_for('teacher.dashboard') }}" class="nav-item">📋 学生列表</a>
+            <a href="{{ url_for('teacher.problem_bank') }}" class="nav-item active">📝 题库管理</a>
+            <a href="{{ url_for('auth.logout') }}" class="nav-item nav-logout">🚪 退出登录</a>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <div class="page-header">
+            <h1>题库管理</h1>
+            <div>
+                <button class="btn btn-outline btn-danger" onclick="deleteSelected()" style="margin-right:8px;">🗑 删除选中</button>
+                <button class="btn btn-primary" onclick="downloadSelected()">📥 下载选中题目</button>
+                <span id="selectedCount" style="margin-left:8px; color:var(--text-muted); font-size:0.875rem;"></span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="filter-bar" style="display:flex; flex-wrap:wrap; align-items:center; gap:8px;">
+                <span>按知识点：</span>
+                <a href="{{ url_for('teacher.problem_bank', student=current_student) }}" class="chip {% if not current_topic %}chip-active{% endif %}">全部</a>
+                {% for t in topics %}
+                <a href="{{ url_for('teacher.problem_bank', topic=t.id, student=current_student) }}" class="chip {% if current_topic == t.id %}chip-active{% endif %}">{{ t.name }}</a>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card">
+            {% if problems %}
+            <div style="margin-bottom:12px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+                <select id="studentSelect" onchange="onStudentChange()" style="padding:4px 8px; border:1px solid var(--border); border-radius:4px; font-size:0.875rem;">
+                    <option value="">选择学生（弱点匹配）</option>
+                    {% for s in students %}
+                    <option value="{{ s.id }}">{{ s.name }}</option>
+                    {% endfor %}
+                </select>
+                <button class="btn btn-sm btn-outline" onclick="selectByWeakness()">🎯 按薄弱点勾选</button>
+                <button class="btn btn-sm btn-outline" onclick="clearAllChecks()">清除勾选</button>
+                <span style="width:1px; height:20px; background:var(--border);"></span>
+                <label style="cursor:pointer; font-size:0.875rem; white-space:nowrap;">
+                    <input type="checkbox" id="selectAll" onchange="toggleSelectAll()" checked> 全选题目
+                </label>
+                <label style="cursor:pointer; font-size:0.875rem; white-space:nowrap;">
+                    <input type="checkbox" id="selectAllAnswer" onchange="toggleAll('answer')" checked> 全选答案
+                </label>
+                <label style="cursor:pointer; font-size:0.875rem; white-space:nowrap;">
+                    <input type="checkbox" id="selectAllSteps" onchange="toggleAll('steps')" checked> 全选解题步骤
+                </label>
+                <label style="cursor:pointer; font-size:0.875rem; white-space:nowrap;">
+                    <input type="checkbox" id="selectAllHints" onchange="toggleAll('hints')" checked> 全选提示
+                </label>
+            </div>
+            <div class="problem-list">
+                {% for p in problems %}
+                <div class="problem-item" id="item-{{ p.id }}" data-topic="{{ p.topic }}" data-student="{{ p.generated_for_student or '' }}">
+                    <div style="display:flex; align-items:flex-start; gap:8px;">
+                        <input type="checkbox" class="problem-check" value="{{ p.id }}" onchange="updateCount()" checked style="margin-top:4px; flex-shrink:0;">
+                        <div style="flex:1; min-width:0;">
+                            <div class="problem-header">
+                                <span class="badge">
+                                    {% for t in topics %}{% if t.id == p.topic %}{{ t.name }}{% endif %}{% endfor %}
+                                </span>
+                                <span class="difficulty">{{ '⭐' * (p.difficulty or 3) }}</span>
+                                {% if p.reason_category %}<span class="badge badge-warning" style="font-size:0.7rem;">{{ p.reason_category }}</span>{% endif %}
+                                <span class="text-muted text-sm">生成于 {{ p.created_at[:10] }}</span>
+                            </div>
+                            <div class="problem-question">{{ p.question }}</div>
+                            {% if p.answer %}
+                            <div class="problem-answer">
+                                <strong>答案：</strong><span class="answer-text">{{ p.answer }}</span>
+                            </div>
+                            {% endif %}
+                            {% if p.solution_steps %}
+                            <details class="solution-details">
+                                <summary>查看解题步骤 ({{ p.solution_steps|length }}步)</summary>
+                                <ol class="solution-steps">
+                                    {% for step in p.solution_steps %}
+                                    <li>{{ step }}</li>
+                                    {% endfor %}
+                                </ol>
+                            </details>
+                            {% endif %}
+                            {% if p.hints %}
+                            <details class="hints-details">
+                                <summary>查看提示 ({{ p.hints|length }}条)</summary>
+                                <ul class="hints-list">
+                                    {% for hint in p.hints %}
+                                    <li>{{ hint }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </details>
+                            {% endif %}
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:4px; flex-shrink:0;" class="problem-options">
+                            {% if p.answer %}
+                            <label style="cursor:pointer; font-size:0.75rem; white-space:nowrap;"><input type="checkbox" class="opt-answer" data-pid="{{ p.id }}" onchange="updateCount()" checked> 答案</label>
+                            {% endif %}
+                            {% if p.solution_steps %}
+                            <label style="cursor:pointer; font-size:0.75rem; white-space:nowrap;"><input type="checkbox" class="opt-steps" data-pid="{{ p.id }}" onchange="updateCount()" checked> 解题步骤</label>
+                            {% endif %}
+                            {% if p.hints %}
+                            <label style="cursor:pointer; font-size:0.75rem; white-space:nowrap;"><input type="checkbox" class="opt-hints" data-pid="{{ p.id }}" onchange="updateCount()" checked> 提示</label>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-center text-muted" style="padding:40px;">
+                暂无题目。请在学生详情页中为学生生成定制题目。
+            </p>
+            {% endif %}
+        </div>
+    </main>
+</div>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}?v=3">
+<script src="{{ url_for('static', filename='js/math_render.js') }}"></script>
+<script>
+var studentWeaknessTopics = {{ student_weakness_topics | tojson }};
+
+function updateCount() {
+    var checked = document.querySelectorAll('.problem-check:checked').length;
+    document.getElementById('selectedCount').textContent = checked > 0 ? '已选 ' + checked + ' 题' : '';
+}
+
+function toggleSelectAll() {
+    var all = document.getElementById('selectAll').checked;
+    document.querySelectorAll('.problem-check').forEach(function(cb) { cb.checked = all; });
+    updateCount();
+}
+
+function toggleAll(type) {
+    var cls = type === 'answer' ? '.opt-answer' : type === 'steps' ? '.opt-steps' : '.opt-hints';
+    var all = document.getElementById('selectAll' + type.charAt(0).toUpperCase() + type.slice(1));
+    document.querySelectorAll(cls).forEach(function(cb) { cb.checked = all.checked; });
+    updateCount();
+}
+
+function clearAllChecks() {
+    document.querySelectorAll('.problem-check').forEach(function(cb) { cb.checked = false; });
+    document.getElementById('selectAll').checked = false;
+    updateCount();
+}
+
+function selectByWeakness() {
+    var sid = document.getElementById('studentSelect').value;
+    if (!sid) { alert('请先选择学生'); return; }
+    var weakTopics = studentWeaknessTopics[sid] || [];
+    if (weakTopics.length === 0) { alert('该学生暂无薄弱点记录'); return; }
+    // Uncheck all first
+    document.querySelectorAll('.problem-check').forEach(function(cb) { cb.checked = false; });
+    // Check problems matching weakness topics
+    document.querySelectorAll('.problem-check').forEach(function(cb) {
+        var pid = cb.value;
+        var item = document.getElementById('item-' + pid);
+        if (!item) return;
+        var badge = item.querySelector('.badge');
+        if (!badge) return;
+        // Find topic from the badge (compare with known topics)
+        // Use data attribute which we need to embed
+    });
+    // Alternative: use data-topic attribute on each problem item
+    document.querySelectorAll('.problem-item').forEach(function(item) {
+        var topic = item.getAttribute('data-topic');
+        if (weakTopics.indexOf(topic) >= 0) {
+            var cb = item.querySelector('.problem-check');
+            if (cb) cb.checked = true;
+        }
+    });
+    updateCount();
+    document.getElementById('selectedCount').textContent += ' (薄弱匹配)';
+}
+
+function onStudentChange() {
+    // Optional: auto-trigger weakness selection
+}
+
+function downloadSelected() {
+    // Collect selected problems and their per-problem options
+    var items = [];
+    document.querySelectorAll('.problem-check:checked').forEach(function(cb) {
+        var pid = cb.value;
+        var item = document.getElementById('item-' + pid);
+        var opt = {
+            id: pid,
+            include_answer: item.querySelector('.opt-answer') ? item.querySelector('.opt-answer').checked : false,
+            include_steps: item.querySelector('.opt-steps') ? item.querySelector('.opt-steps').checked : false,
+            include_hints: item.querySelector('.opt-hints') ? item.querySelector('.opt-hints').checked : false,
+        };
+        items.push(opt);
+    });
+    if (items.length === 0) { alert('请至少勾选一道题目'); return; }
+
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = "{{ url_for('teacher.export_problems') }}";
+    form.target = '_blank';
+
+    var inputData = document.createElement('input');
+    inputData.type = 'hidden';
+    inputData.name = 'export_data';
+    inputData.value = JSON.stringify(items);
+    form.appendChild(inputData);
+
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+}
+
+function deleteSelected() {
+    var checked = document.querySelectorAll('.problem-check:checked');
+    if (checked.length === 0) { alert('请至少勾选一道题目'); return; }
+    if (!confirm('确定要删除选中的 ' + checked.length + ' 道题目吗？此操作不可撤销。')) return;
+    var ids = [];
+    checked.forEach(function(cb) { ids.push(cb.value); });
+    fetch("{{ url_for('teacher.delete_problems') }}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: ids })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            ids.forEach(function(id) {
+                var el = document.getElementById('item-' + id);
+                if (el) el.remove();
+            });
+            updateCount();
+        } else {
+            alert('删除失败：' + (data.error || '未知错误'));
+        }
+    })
+    .catch(function(e) { alert('请求失败：' + e.message); });
+}
+
+updateCount();
+</script>
+{% endblock %}

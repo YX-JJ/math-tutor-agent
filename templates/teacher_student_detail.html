@@ -1,0 +1,674 @@
+{% extends "base.html" %}
+{% block title %}{{ student.name }} - 学生详情{% endblock %}
+{% block body %}
+<div class="admin-layout">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>🎓 茶山中学-教学管理</h2>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="{{ url_for('teacher.dashboard') }}" class="nav-item">📋 学生列表</a>
+            <a href="{{ url_for('teacher.problem_bank') }}" class="nav-item">📝 题库管理</a>
+            <a href="{{ url_for('auth.logout') }}" class="nav-item nav-logout">🚪 退出登录</a>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <div class="page-header">
+            <a href="{{ url_for('teacher.dashboard') }}" class="back-link">&larr; 返回列表</a>
+            <div class="header-actions">
+                <a href="{{ url_for('student.chat', student_id=student.id) }}" class="btn btn-primary" target="_blank">💬 对话</a>
+                <button class="btn btn-danger" onclick="confirmDeleteStudent()">🗑 删除学生</button>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <div class="detail-grid">
+            <div class="card">
+                <h2>{{ student.name }} <button class="btn btn-sm btn-outline" onclick="editName()" style="font-size:12px; margin-left:8px;" title="修改姓名">✏️</button></h2>
+                <div class="info-row"><span class="info-label">学习风格</span>
+                    <form method="POST" action="{{ url_for('teacher.edit_student', student_id=student.id) }}" style="display:inline;">
+                        <select name="learning_style" onchange="this.form.submit()" class="form-input" style="width:auto; display:inline; padding:2px 8px; font-size:13px;">
+                            {% set current_style = student.profile.learning_style %}
+                            <option value="未设置" {% if current_style == '未设置' %}selected{% endif %}>未设置</option>
+                            <option value="视觉型" {% if current_style == '视觉型' %}selected{% endif %}>视觉型 — 图形图表理解最佳</option>
+                            <option value="听觉型" {% if current_style == '听觉型' %}selected{% endif %}>听觉型 — 听讲口述理解最佳</option>
+                            <option value="动手型" {% if current_style == '动手型' %}selected{% endif %}>动手型 — 动手计算理解最佳</option>
+                            <option value="阅读型" {% if current_style == '阅读型' %}selected{% endif %}>阅读型 — 文字推导理解最佳</option>
+                        </select>
+                    </form>
+                </div>
+                <div class="info-row"><span class="info-label">整体正确率</span><span class="info-value">{{ ((student.overall_accuracy or 0) * 100) | int }}%</span></div>
+                <div class="info-row"><span class="info-label">做题总数</span><span class="info-value">{{ student.total_problems_attempted }}</span></div>
+                <div class="info-row"><span class="info-label">创建时间</span><span class="info-value">{{ student.created_at[:10] }}</span></div>
+                <h3 style="margin-top:20px;">教师备注</h3>
+                <form method="POST" action="{{ url_for('teacher.edit_student', student_id=student.id) }}" style="margin-top:8px;">
+                    <textarea name="teacher_notes" class="form-textarea" rows="3" placeholder="添加备注...">{{ student.teacher_notes }}</textarea>
+                    <button type="submit" class="btn btn-sm btn-primary" style="margin-top:8px;">保存备注</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="card-header-flex">
+                    <h3>知识点掌握度</h3>
+                    <button class="btn btn-sm btn-primary" onclick="analyzeAndUpdate('{{ student.id }}')">🔄 分析更新</button>
+                    <button class="btn btn-sm btn-outline" onclick="resetStats('{{ student.id }}')" style="margin-left:6px;">↺ 重置统计</button>
+                </div>
+                <div style="width:450px; height:450px; margin:0 auto;">
+                    <svg id="radarSvg" viewBox="0 0 640 640" style="width:100%; height:100%;"></svg>
+                </div>
+            </div>
+
+            <div class="card card-span-2">
+                <div class="card-header-flex">
+                    <h3>薄弱环节</h3>
+                    <button class="btn btn-sm btn-primary" onclick="showWeaknessForm()">+ 添加薄弱点</button>
+                </div>
+                {% if student.weaknesses %}
+                <table class="table">
+                    <thead><tr><th style="text-align:center;">知识点</th><th style="text-align:center;">子知识点</th><th style="text-align:center;">掌握度</th><th style="text-align:center;">严重程度</th><th style="text-align:center;">依据</th><th style="text-align:center;">最近评估</th><th style="text-align:center; width:180px; white-space:nowrap;">操作</th></tr></thead>
+                    <tbody>
+                        {% for w in student.weaknesses %}
+                        <tr>
+                            <td>{% for t in topics %}{% if t.id == w.topic %}{{ t.name }}{% endif %}{% endfor %}</td>
+                            <td>{{ w.subtopic or '-' }}</td>
+                            <td>
+                                {% set m = student.mastery_levels.get(w.topic, 0) %}
+                                {% set display = m if m > 0 else ([100 - w.severity * 10, 5] | max) %}
+                                <div class="accuracy-bar"><div class="accuracy-fill" style="width: {{ display }}%"></div></div>
+                                {% if m > 0 %}{{ m }}%{% else %}{{ display }}%{% endif %}
+                            </td>
+                            <td>
+                                <div class="severity-bar"><div class="severity-fill severity-{{ w.severity }}" style="width: {{ w.severity * 10 }}%"></div></div>
+                                {{ w.severity }}/10
+                            </td>
+                            <td class="text-muted text-sm">{{ w.evidence or '-' }}</td>
+                            <td class="text-muted">{{ w.last_assessed or '-' }}</td>
+                            <td style="white-space:nowrap;">
+                                <a href="{{ url_for('student.chat', student_id=student.id) }}?topic={{ w.topic }}" class="btn btn-sm btn-primary" target="_blank">对话</a>
+                                <button class="btn btn-sm btn-outline" onclick="editWeakness('{{ w.topic }}','{{ w.subtopic or '' }}',{{ w.severity }},'{{ w.evidence or '' }}')">编辑</button>
+                                <form method="POST" action="{{ url_for('teacher.delete_weakness', student_id=student.id) }}" style="display:inline; margin-left:6px;" onsubmit="return confirm('确定删除此薄弱点？')">
+                                    <input type="hidden" name="topic" value="{{ w.topic }}">
+                                    <button type="submit" class="btn btn-sm btn-danger">删除</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted">暂无薄弱点记录</p>
+                {% endif %}
+
+                <div id="weaknessForm" style="display:none; margin-top:16px; padding:16px; background:#f9fafb; border-radius:8px;">
+                    <h4 id="weaknessFormTitle">添加薄弱点</h4>
+                    <form method="POST" action="{{ url_for('teacher.edit_weakness', student_id=student.id) }}">
+                        <div class="form-row">
+                            <div class="form-group"><label>知识点</label><select name="topic" id="weakTopic" class="form-input">{% for t in topics %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}</select></div>
+                            <div class="form-group"><label>子知识点</label><input type="text" name="subtopic" id="weakSubtopic" class="form-input"></div>
+                            <div class="form-group"><label>严重程度 (1-10)</label><input type="number" name="severity" id="weakSeverity" class="form-input" value="5" min="1" max="10"></div>
+                        </div>
+                        <div class="form-group"><label>评估依据</label><input type="text" name="evidence" id="weakEvidence" class="form-input" placeholder="描述学生的具体表现"></div>
+                        <button type="submit" class="btn btn-primary">保存薄弱点</button>
+                        <button type="button" class="btn btn-outline" onclick="hideWeaknessForm()" style="margin-left:8px;">取消</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Conversation History with View & Delete -->
+            <div class="card">
+                <div class="card-header-flex">
+                    <h3>对话历史</h3>
+                    {% if sessions %}
+                    <button class="btn btn-sm btn-danger" onclick="confirmClearSessions()">清空全部</button>
+                    {% endif %}
+                </div>
+                {% if sessions %}
+                <table class="table">
+                    <thead><tr><th style="text-align:center;">时间</th><th style="text-align:center;">主题</th><th style="text-align:center;">消息数</th><th style="text-align:center; width:185px; white-space:nowrap;">操作</th></tr></thead>
+                    <tbody>
+                        {% for sess in sessions %}
+                        <tr>
+                            <td class="text-muted">{{ sess.session_start[:10] }} {{ sess.session_start[11:16] }}</td>
+                            <td>{% if sess.topic_focus %}{% for t in topics %}{% if t.id == sess.topic_focus %}{{ t.name }}{% endif %}{% endfor %}{% else %}综合辅导{% endif %}</td>
+                            <td>{{ sess.message_count }}</td>
+                            <td style="white-space:nowrap;">
+                                <button class="btn btn-sm btn-outline" onclick="viewSession('{{ sess.id }}')">查看</button>
+                                <a href="{{ url_for('student.chat', student_id=student.id) }}?session_id={{ sess.id }}" class="btn btn-sm btn-primary" target="_blank" style="margin-left:6px;">继续</a>
+                                <button class="btn btn-sm btn-danger" onclick="deleteSession('{{ sess.id }}')" style="margin-left:6px;">删除</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted">暂无对话记录</p>
+                {% endif %}
+            </div>
+
+            <!-- Generated Problems -->
+            <div class="card">
+                <div class="card-header-flex">
+                    <h3>已生成题目</h3>
+                    <button class="btn btn-sm btn-primary" onclick="showGenerateModal()">+ 生成新题</button>
+                </div>
+                {% if problems %}
+                <table class="table">
+                    <thead><tr><th style="text-align:center;">题目</th><th style="text-align:center;">知识点</th><th style="text-align:center;">难度</th><th style="text-align:center; width:120px; white-space:nowrap;">操作</th></tr></thead>
+                    <tbody>
+                        {% for p in problems[:10] %}
+                        <tr>
+                            <td class="text-sm">{{ p.question[:60] }}...</td>
+                            <td>{% for t in topics %}{% if t.id == p.topic %}{{ t.name }}{% endif %}{% endfor %}</td>
+                            <td>{{ '⭐' * (p.difficulty or 3) }}</td>
+                            <td style="white-space:nowrap;">
+                                <a href="{{ url_for('student.chat', student_id=student.id) }}?problem_id={{ p.id }}" class="btn btn-sm btn-outline" target="_blank">对话练习</a>
+                                <button class="btn btn-sm btn-danger" onclick="deleteProblem('{{ p.id }}')" style="margin-left:6px;">删除</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted">暂未生成题目。点击"生成新题"为{{ student.name }}定制练习。</p>
+                {% endif %}
+            </div>
+
+            <!-- Wrong Problem Collection -->
+            <div class="card card-span-2">
+                <div class="card-header-flex">
+                    <h3>📝 错题集</h3>
+                    <button class="btn btn-sm btn-primary" onclick="showAddWrongModal()">+ 添加错题</button>
+                </div>
+                {% if wrong_problems %}
+                <table class="table">
+                    <thead><tr><th style="text-align:center;">题目</th><th style="text-align:center;">知识点</th><th style="text-align:center;">学生作答</th><th style="text-align:center;">正确答案</th><th style="text-align:center;">错误原因</th><th style="text-align:center;">时间</th><th style="text-align:center; width:80px; white-space:nowrap;">操作</th></tr></thead>
+                    <tbody>
+                        {% for w in wrong_problems %}
+                        <tr>
+                            <td class="text-sm" style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ w.question }}">{{ w.question[:40] }}{% if w.question|length > 40 %}...{% endif %}</td>
+                            <td>{% for t in topics %}{% if t.id == w.topic %}{{ t.name }}{% endif %}{% endfor %}</td>
+                            <td style="color:#ef4444; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ w.student_answer }}">{{ w.student_answer[:20] or '-' }}{% if w.student_answer and w.student_answer|length > 20 %}...{% endif %}</td>
+                            <td style="color:#10b981; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ w.answer }}">{{ w.answer[:20] or '-' }}{% if w.answer and w.answer|length > 20 %}...{% endif %}</td>
+                            <td class="text-muted text-sm">{{ w.reason or '-' }}</td>
+                            <td class="text-muted">{{ w.created_at[:10] }}</td>
+                            <td style="white-space:nowrap;">
+                                <button class="btn btn-sm btn-outline" onclick="viewWrongProblem('{{ w.id }}')">查看</button>
+                                <form method="POST" action="{{ url_for('teacher.delete_wrong_problem', wp_id=w.id) }}" style="display:inline; margin-left:4px;" onsubmit="return confirm('确定删除此错题？')">
+                                    <button type="submit" class="btn btn-sm btn-danger">删除</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted">暂无错题记录</p>
+                {% endif %}
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- View Session Modal -->
+<div id="sessionModal" class="modal" style="display:none;">
+    <div class="modal-content" style="max-width:700px;max-height:80vh;overflow-y:auto;">
+        <div class="modal-header">
+            <h3>对话详情</h3>
+            <button class="modal-close" onclick="closeSessionModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="sessionContent">
+            <p class="text-muted">加载中...</p>
+        </div>
+    </div>
+</div>
+
+<!-- View Problem Modal -->
+<div id="problemModal" class="modal" style="display:none;">
+    <div class="modal-content" style="max-width:600px;max-height:80vh;overflow-y:auto;">
+        <div class="modal-header">
+            <h3>题目详情</h3>
+            <button class="modal-close" onclick="closeProblemModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="problemContent"></div>
+    </div>
+</div>
+
+<!-- Generate Problem Modal -->
+<div id="generateModal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <div class="modal-header"><h3>为 {{ student.name }} 生成定制题目</h3><button class="modal-close" onclick="closeGenerateModal()">&times;</button></div>
+        <div class="modal-body">
+            {% set weak_topic_ids = student.weaknesses | map(attribute='topic') | list %}
+            <div class="form-group"><label>知识点（薄弱环节）</label>
+            {% if weak_topic_ids %}
+            <select id="genTopic" class="form-input">{% for t in topics %}{% if t.id in weak_topic_ids %}<option value="{{ t.id }}">{{ t.name }}</option>{% endif %}{% endfor %}</select>
+            {% else %}
+            <p class="text-muted text-sm">该学生暂无薄弱环节，请先添加薄弱点。</p>
+            {% endif %}
+            </div>
+            <div class="form-group"><label>难度 (1-5)</label><input type="number" id="genDifficulty" class="form-input" value="3" min="1" max="5"></div>
+            <button class="btn btn-primary" onclick="generateProblem('{{ student.id }}')" {% if not weak_topic_ids %}disabled{% endif %}>生成题目</button>
+            <div id="genResult" style="margin-top:12px;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Wrong Problem Modal -->
+<div id="addWrongModal" class="modal" style="display:none;">
+    <div class="modal-content" style="max-width:560px;max-height:85vh;overflow-y:auto;">
+        <div class="modal-header">
+            <h3>为 {{ student.name }} 添加错题</h3>
+            <button class="modal-close" onclick="closeAddWrongModal()">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('teacher.add_wrong_problem') }}">
+            <input type="hidden" name="student_id" value="{{ student.id }}">
+            <input type="hidden" name="student_name" value="{{ student.name }}">
+            <input type="hidden" name="redirect_to" value="student_detail">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>知识点</label>
+                    <select name="topic" class="form-input">
+                        {% for t in topics %}
+                        <option value="{{ t.id }}">{{ t.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>题目</label>
+                    <textarea name="question" class="form-textarea" rows="3" required placeholder="错题内容"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>学生作答</label>
+                        <input type="text" name="student_answer" class="form-input" placeholder="学生的错误答案">
+                    </div>
+                    <div class="form-group">
+                        <label>正确答案</label>
+                        <input type="text" name="answer" class="form-input" placeholder="正确答案">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>解题步骤（每行一步）</label>
+                    <textarea name="solution_steps" class="form-textarea" rows="3" placeholder="步骤1&#10;步骤2&#10;步骤3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>提示（每行一条）</label>
+                    <textarea name="hints" class="form-textarea" rows="2" placeholder="提示1&#10;提示2"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>难度 (1-5)</label>
+                        <input type="number" name="difficulty" class="form-input" value="3" min="1" max="5">
+                    </div>
+                    <div class="form-group">
+                        <label>错误原因</label>
+                        <select name="reason" class="form-input">
+                            <option value="">请选择</option>
+                            <option value="概念不清">概念不清</option>
+                            <option value="计算错误">计算错误</option>
+                            <option value="审题不清">审题不清</option>
+                            <option value="公式记错">公式记错</option>
+                            <option value="步骤遗漏">步骤遗漏</option>
+                            <option value="其他">其他</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeAddWrongModal()">取消</button>
+                <button type="submit" class="btn btn-primary">确认添加</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- View Wrong Problem Modal -->
+<div id="wrongProblemModal" class="modal" style="display:none;">
+    <div class="modal-content" style="max-width:600px;max-height:80vh;overflow-y:auto;">
+        <div class="modal-header">
+            <h3>错题详情</h3>
+            <button class="modal-close" onclick="closeWrongProblemModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="wrongProblemContent"></div>
+    </div>
+</div>
+
+<!-- Delete Student Confirm Modal -->
+<div id="deleteStudentModal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <div class="modal-header"><h3>确认删除</h3><button class="modal-close" onclick="closeDeleteModal()">&times;</button></div>
+        <div class="modal-body">
+            <p>确定要删除学生 <strong>{{ student.name }}</strong> 吗？</p>
+            <p class="text-muted text-sm">此操作不可撤销，将同时删除该学生的所有对话记录和题目。</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeDeleteModal()">取消</button>
+            <form method="POST" action="{{ url_for('teacher.delete_student', student_id=student.id) }}" style="display:inline;">
+                <button type="submit" class="btn btn-danger">确认删除</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}?v=2">
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script src="{{ url_for('static', filename='js/math_render.js') }}"></script>
+<script>
+// === SVG radar chart ===
+(function() {
+    var svg = document.getElementById('radarSvg');
+    if (!svg) return;
+
+    var topics = [{% for t in topics %}{id:'{{ t.id }}',name:'{{ t.name }}'}{% if not loop.last %},{% endif %}{% endfor %}];
+    var mastery = {{ student.mastery_levels | tojson }};
+    var weaknesses = {{ student.weaknesses | tojson }};
+    var weakMap = {};
+    weaknesses.forEach(function(w) { weakMap[w.topic] = w.severity; });
+
+    var cx = 320, cy = 320, r = 235;
+    var n = topics.length;
+    var html = '';
+
+    // Grid: 5 concentric polygons
+    for (var level = 20; level <= 100; level += 20) {
+        var pts = [];
+        for (var i = 0; i < n; i++) {
+            var angle = Math.PI * 2 * i / n - Math.PI / 2;
+            var lr = r * level / 100;
+            pts.push((cx + lr * Math.cos(angle)).toFixed(0) + ',' + (cy + lr * Math.sin(angle)).toFixed(0));
+        }
+        html += '<polygon points="' + pts.join(' ') + '" fill="none" stroke="#e5e7eb" stroke-width="1"/>';
+    }
+
+    // Axis lines
+    for (var i = 0; i < n; i++) {
+        var angle = Math.PI * 2 * i / n - Math.PI / 2;
+        var x = cx + r * Math.cos(angle), y = cy + r * Math.sin(angle);
+        html += '<line x1="' + cx + '" y1="' + cy + '" x2="' + x.toFixed(0) + '" y2="' + y.toFixed(0) + '" stroke="#e5e7eb" stroke-width="1"/>';
+    }
+
+    // Compute display value: use actual mastery if >0, otherwise derive from weakness severity
+    // This ensures adding/deleting weaknesses immediately changes the radar visually
+    function displayVal(topicId) {
+        var sev = weakMap[topicId] || 0;
+        if (sev === 0) return 0; // Not a weakness → always at center
+        var m = mastery[topicId] || 0;
+        if (m > 0) return m; // Real mastery from AI analysis
+        return Math.max(5, 100 - sev * 10); // Derived from severity
+    }
+    function hasWeakness(topicId) { return (weakMap[topicId] || 0) > 0; }
+
+    // Data points and labels
+    for (var i = 0; i < n; i++) {
+        var angle = Math.PI * 2 * i / n - Math.PI / 2;
+        var realMastery = mastery[topics[i].id] || 0;
+        var val = displayVal(topics[i].id);
+        var dr = r * val / 100;
+        var px = cx + dr * Math.cos(angle), py = cy + dr * Math.sin(angle);
+        var sev = weakMap[topics[i].id] || 0;
+        var isWeak = hasWeakness(topics[i].id);
+        var color = sev >= 7 ? '#ef4444' : sev >= 4 ? '#f59e0b' : realMastery >= 70 ? '#10b981' : '#4f46e5';
+        var radius = sev >= 7 ? 7 : sev >= 4 ? 6 : isWeak ? 5 : 3;
+        // Line from center to data point
+        html += '<line x1="' + cx + '" y1="' + cy + '" x2="' + px.toFixed(1) + '" y2="' + py.toFixed(1) + '" stroke="' + color + '" stroke-width="1" stroke-opacity="0.5"/>';
+        html += '<circle cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="' + radius + '" fill="' + color + '" stroke="#fff" stroke-width="1"/>';
+
+        // Labels: highlight weak topics, dim unassessed topics
+        var lx = cx + (r + 15) * Math.cos(angle);
+        var ly = cy + (r + 15) * Math.sin(angle);
+        var prefix = sev >= 7 ? '⚠ ' : '';
+        var anchor = 'middle';
+        if (lx < cx - 20) anchor = 'end';
+        else if (lx > cx + 20) anchor = 'start';
+        html += '<text x="' + lx.toFixed(0) + '" y="' + (ly + 4).toFixed(0) + '" text-anchor="' + anchor + '" font-size="' + (isWeak ? '11' : '9') + '" fill="' + color + '" font-family="sans-serif" font-weight="' + (isWeak ? 'bold' : 'normal') + '">' + prefix + topics[i].name + '</text>';
+
+        // Score label: show real mastery if available, otherwise derived from severity
+        var labelVal = realMastery > 0 ? realMastery : (isWeak ? val : 0);
+        var labelText = realMastery > 0 ? realMastery + '%' : (isWeak ? val + '%' : '');
+        html += '<text x="' + px.toFixed(1) + '" y="' + (py - 10).toFixed(1) + '" text-anchor="middle" font-size="9" fill="' + color + '" font-weight="bold" font-family="sans-serif">' + labelText + '</text>';
+    }
+
+    svg.innerHTML = html;
+})();
+
+// === Remaining functions ===
+var _studentWeaknesses = {{ student.weaknesses | tojson }};
+var _origShowGen = typeof showGenerateModal !== 'undefined' ? showGenerateModal : function(){};
+showGenerateModal = function() {
+    var sel = document.getElementById('genTopic');
+    if (sel && _studentWeaknesses && _studentWeaknesses.length > 0) {
+        var weakest = _studentWeaknesses.reduce(function(a, b) {
+            return (a.severity || 0) > (b.severity || 0) ? a : b;
+        });
+        sel.value = weakest.topic;
+        var diffInput = document.getElementById('genDifficulty');
+        if (diffInput) {
+            var d = Math.max(1, Math.min(5, Math.round(weakest.severity / 2)));
+            diffInput.value = d;
+        }
+    }
+    _origShowGen();
+};
+// Weakness edit form
+function editWeakness(topic, subtopic, severity, evidence) {
+    document.getElementById('weakTopic').value = topic;
+    document.getElementById('weakSubtopic').value = subtopic || '';
+    document.getElementById('weakSeverity').value = severity;
+    document.getElementById('weakEvidence').value = evidence || '';
+    document.getElementById('weaknessFormTitle').textContent = '编辑薄弱点';
+    document.getElementById('weaknessForm').style.display = 'block';
+    document.getElementById('weaknessForm').scrollIntoView({ behavior: 'smooth' });
+}
+
+function hideWeaknessForm() {
+    document.getElementById('weaknessForm').style.display = 'none';
+    document.getElementById('weaknessFormTitle').textContent = '添加薄弱点';
+    document.getElementById('weakTopic').selectedIndex = 0;
+    document.getElementById('weakSubtopic').value = '';
+    document.getElementById('weakSeverity').value = 5;
+    document.getElementById('weakEvidence').value = '';
+}
+
+// Delete problem
+function deleteProblem(pid) {
+    if (!confirm('确定要删除这道题目吗？')) return;
+    fetch('/api/problems/' + pid, { method: 'DELETE' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) { location.reload(); }
+            else { alert('删除失败：' + (data.error || '未知错误')); }
+        })
+        .catch(function(e) { alert('请求失败'); });
+}
+
+// Edit student name inline
+function editName() {
+    var newName = prompt('修改学生姓名：', '{{ student.name }}');
+    if (!newName || !newName.trim()) return;
+    var form = new FormData();
+    form.append('name', newName.trim());
+    fetch('{{ url_for("teacher.edit_student", student_id=student.id) }}', { method: 'POST', body: form })
+        .then(function(r) {
+            if (r.ok) { location.reload(); }
+            else { alert('修改失败'); }
+        });
+}
+
+// View session messages
+function viewSession(sid) {
+    document.getElementById('sessionContent').innerHTML = '<p class="text-muted">加载中...</p>';
+    document.getElementById('sessionModal').style.display = 'flex';
+    fetch('/student/session/' + sid + '/messages')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var html = '';
+            if (data.messages && data.messages.length > 0) {
+                data.messages.forEach(function(m) {
+                    var roleLabel = m.role === 'user' ? '学生' : 'AI老师';
+                    var cls = m.role === 'user' ? 'message-user' : 'message-assistant';
+                    html += '<div style="margin-bottom:16px;padding:10px 14px;border-radius:8px;background:' + (m.role==='user'?'#eef2ff':'#f9fafb') + ';">';
+                    html += '<div style="font-size:0.8rem;color:#6b7280;margin-bottom:4px;">' + roleLabel + '</div>';
+                    html += '<div style="line-height:1.7;">' + m.content.replace(/\n/g,'<br>') + '</div>';
+                    html += '</div>';
+                });
+            } else {
+                html = '<p class="text-muted">暂无消息</p>';
+            }
+            document.getElementById('sessionContent').innerHTML = html;
+            // Render math
+            if (typeof renderMathInElement === 'function') {
+                try { renderMathInElement(document.getElementById('sessionContent')); } catch(e) {}
+            }
+        })
+        .catch(function(e) { document.getElementById('sessionContent').innerHTML = '<p style="color:red;">加载失败</p>'; });
+}
+
+function closeSessionModal() { document.getElementById('sessionModal').style.display = 'none'; }
+
+// Auto analyze and update mastery
+function analyzeAndUpdate(sid) {
+    var btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '分析中...';
+    fetch('/api/students/' + sid + '/weakness/auto_update', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                alert('分析完成！\n\n总结：' + (data.summary || '已更新') + '\n更新薄弱点：' + (data.updates_applied || 0) + '项\n更新掌握度：' + Object.keys(data.new_mastery_levels || {}).length + '个知识点');
+                location.reload();
+            } else {
+                alert('分析失败：' + (data.error || '未知错误'));
+            }
+        })
+        .catch(function(e) { alert('请求失败：' + e.message); })
+        .finally(function() { btn.disabled = false; btn.textContent = '🔄 分析更新'; });
+}
+
+// Reset stats (mastery, accuracy, problem count)
+function resetStats(sid) {
+    if (!confirm('确定要重置全部掌握度、做题总数和整体正确率吗？此操作不可撤销。')) return;
+    fetch('/api/students/' + sid + '/reset_stats', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) { location.reload(); }
+            else { alert('重置失败：' + (data.error || '未知错误')); }
+        })
+        .catch(function(e) { alert('请求失败'); });
+}
+
+// Delete session
+function deleteSession(sid) {
+    if (!confirm('确定要删除这个对话记录吗？')) return;
+    fetch('/api/sessions/' + sid, { method: 'DELETE' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) { location.reload(); }
+            else { alert('删除失败：' + (data.error || '未知错误')); }
+        })
+        .catch(function(e) { alert('请求失败'); });
+}
+
+// Clear all sessions for this student
+function confirmClearSessions() {
+    if (!confirm('确定要清空该学生的所有对话记录吗？此操作不可撤销。')) return;
+    fetch('/api/students/{{ student.id }}/sessions', { method: 'DELETE' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) { location.reload(); })
+        .catch(function(e) { alert('请求失败'); });
+}
+
+// Delete student
+function confirmDeleteStudent() {
+    document.getElementById('deleteStudentModal').style.display = 'flex';
+}
+function closeDeleteModal() {
+    document.getElementById('deleteStudentModal').style.display = 'none';
+}
+
+// View problem detail
+function viewProblem(pid) {
+    var problems = {{ problems | tojson }};
+    var p = null;
+    for (var i = 0; i < problems.length; i++) {
+        if (problems[i].id === pid) { p = problems[i]; break; }
+    }
+    if (!p) return;
+    var html = '<h4>' + p.question + '</h4>';
+    if (p.answer) html += '<p><strong>答案：</strong><span style="color:#10b981;font-weight:600;">' + p.answer + '</span></p>';
+    if (p.solution_steps && p.solution_steps.length > 0) {
+        html += '<details open><summary>解题步骤</summary><ol>';
+        p.solution_steps.forEach(function(s) { html += '<li>' + s + '</li>'; });
+        html += '</ol></details>';
+    }
+    if (p.hints && p.hints.length > 0) {
+        html += '<details><summary>提示</summary><ul>';
+        p.hints.forEach(function(h) { html += '<li>' + h + '</li>'; });
+        html += '</ul></details>';
+    }
+    html += '<p class="text-muted text-sm" style="margin-top:12px;">难度：' + '⭐'.repeat(p.difficulty || 3) + ' | 生成于：' + (p.created_at||'').substring(0,10) + '</p>';
+    document.getElementById('problemContent').innerHTML = html;
+    document.getElementById('problemModal').style.display = 'flex';
+    if (typeof renderMathInElement === 'function') {
+        try { renderMathInElement(document.getElementById('problemContent')); } catch(e) {}
+    }
+}
+function closeProblemModal() { document.getElementById('problemModal').style.display = 'none'; }
+
+// Wrong problem modals
+function showAddWrongModal() {
+    document.getElementById('addWrongModal').style.display = 'flex';
+}
+function closeAddWrongModal() {
+    document.getElementById('addWrongModal').style.display = 'none';
+}
+
+var _wrongProblems = {{ wrong_problems | tojson }};
+function viewWrongProblem(wid) {
+    var w = null;
+    for (var i = 0; i < _wrongProblems.length; i++) {
+        if (_wrongProblems[i].id === wid) { w = _wrongProblems[i]; break; }
+    }
+    if (!w) return;
+    var topicNames = {};
+    {% for t in topics %}topicNames['{{ t.id }}'] = '{{ t.name }}';{% endfor %}
+    var html = '<h4 style="margin-bottom:12px;">' + w.question + '</h4>';
+    html += '<p><span class="badge">' + (topicNames[w.topic] || w.topic) + '</span> <span class="difficulty">' + '⭐'.repeat(w.difficulty || 3) + '</span></p>';
+    if (w.student_answer) html += '<p style="margin-top:8px;"><strong>❌ 学生作答：</strong><span style="color:#ef4444;font-weight:600;">' + w.student_answer + '</span></p>';
+    if (w.answer) html += '<p><strong>✅ 正确答案：</strong><span style="color:#10b981;font-weight:600;">' + w.answer + '</span></p>';
+    if (w.solution_steps) {
+        html += '<details open style="margin-top:8px;"><summary>解题步骤</summary><ol>';
+        w.solution_steps.split('\n').forEach(function(s) { if (s.trim()) html += '<li>' + s.trim() + '</li>'; });
+        html += '</ol></details>';
+    }
+    if (w.hints) {
+        html += '<details style="margin-top:4px;"><summary>提示</summary><ul>';
+        w.hints.split('\n').forEach(function(h) { if (h.trim()) html += '<li>' + h.trim() + '</li>'; });
+        html += '</ul></details>';
+    }
+    if (w.reason) html += '<p class="text-muted text-sm" style="margin-top:8px;">错误原因：' + w.reason + '</p>';
+    html += '<p class="text-muted text-sm" style="margin-top:8px;">添加于：' + (w.created_at||'').substring(0,10) + '</p>';
+    document.getElementById('wrongProblemContent').innerHTML = html;
+    document.getElementById('wrongProblemModal').style.display = 'flex';
+    if (typeof renderMathInElement === 'function') {
+        try { renderMathInElement(document.getElementById('wrongProblemContent')); } catch(e) {}
+    }
+}
+function closeWrongProblemModal() { document.getElementById('wrongProblemModal').style.display = 'none'; }
+
+// Close modals on background click
+window.onclick = function(e) {
+    if (e.target.classList.contains('modal')) e.target.style.display = 'none';
+};
+
+</script>
+{% endblock %}

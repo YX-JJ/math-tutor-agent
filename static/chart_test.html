@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Chart Test</title>
+    <script src="/static/js/chart.umd.min.js"></script>
+</head>
+<body>
+    <h2>Chart.js Radar Test</h2>
+    <div style="width:450px; height:450px; margin:20px;">
+        <canvas id="testChart"></canvas>
+    </div>
+    <div id="status" style="margin:20px; font-size:14px;"></div>
+    <script>
+    var s = document.getElementById('status');
+    if (typeof Chart === 'undefined') {
+        s.innerHTML = '<b style="color:red;">Chart.js NOT loaded!</b>';
+    } else {
+        s.innerHTML = '<b style="color:green;">Chart.js loaded OK</b>';
+        try {
+            var ctx = document.getElementById('testChart');
+            new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['A','B','C','D','E'],
+                    datasets: [{
+                        label: 'Test',
+                        data: [30, 50, 70, 20, 90],
+                        backgroundColor: 'rgba(79,70,229,0.15)',
+                        borderColor: '#4f46e5',
+                        borderWidth: 2,
+                        pointBackgroundColor: ['#ef4444','#f59e0b','#10b981','#4f46e5','#4f46e5'],
+                    }]
+                },
+                options: {
+                    responsive: false,
+                    scales: { r: { min: 0, max: 100 } }
+                }
+            });
+            s.innerHTML += '<br><b style="color:green;">Chart created successfully!</b>';
+        } catch(e) {
+            s.innerHTML += '<br><b style="color:red;">Error: ' + e.message + '</b>';
+        }
+    }
+    </script>
+</body>
+</html>

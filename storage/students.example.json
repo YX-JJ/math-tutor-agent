@@ -1,0 +1,51 @@
+{
+  "students": [
+    {
+      "id": "student_001",
+      "name": "小明",
+      "grade": 8,
+      "created_at": "2026-05-01T08:00:00",
+      "updated_at": "2026-05-15T10:30:00",
+      "profile": {
+        "learning_style": "视觉型",
+        "preferred_pace": "moderate",
+        "attention_span_minutes": 25,
+        "math_anxiety_level": "medium"
+      },
+      "weaknesses": [
+        {
+          "topic": "factoring",
+          "subtopic": "提公因式法",
+          "severity": 7,
+          "last_assessed": "2026-05-15",
+          "evidence": "在因式分解练习中多次漏提公因式",
+          "problem_count_attempted": 5,
+          "problem_count_correct": 2
+        },
+        {
+          "topic": "linear_functions",
+          "subtopic": "函数图像与实际意义",
+          "severity": 5,
+          "last_assessed": "2026-05-14",
+          "evidence": "难以从图像中读取函数信息",
+          "problem_count_attempted": 3,
+          "problem_count_correct": 1
+        }
+      ],
+      "strengths": [
+        {"topic": "linear_equations", "note": "掌握扎实，计算准确"},
+        {"topic": "probability", "note": "理解透彻"}
+      ],
+      "mastery_levels": {
+        "linear_equations": 85,
+        "linear_functions": 55,
+        "factoring": 30,
+        "triangles": 75,
+        "probability": 90
+      },
+      "overall_accuracy": 68,
+      "total_problems_done": 15,
+      "teacher_notes": "小明对图像理解偏弱，建议多用坐标系画图讲解。"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "problems": [
+    {
+      "id": "prob_001",
+      "topic": "factoring",
+      "difficulty": 3,
+      "question": "因式分解：$x^2 - 4y^2$",
+      "answer": "$(x+2y)(x-2y)$",
+      "solution_steps": [
+        "观察式子 $x^2 - 4y^2$ 是两个平方项相减",
+        "识别为平方差公式 $a^2 - b^2 = (a+b)(a-b)$",
+        "其中 $a=x$, $b=2y$",
+        "代入公式得 $(x+2y)(x-2y)$"
+      ],
+      "hints": [
+        "观察这是两个平方的差吗？",
+        "回忆平方差公式：$a^2 - b^2 = (a+b)(a-b)$",
+        "把 $4y^2$ 写成 $(2y)^2$ 试试"
+      ],
+      "created_for_student": "student_001",
+      "created_at": "2026-05-15",
+      "student_attempted": true,
+      "student_correct": true,
+      "student_answer": "(x+2y)(x-2y)",
+      "reason_category": ""
+    }
+  ]
+}

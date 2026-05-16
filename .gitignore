@@ -1,0 +1,50 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Sensitive configuration (contains API keys, passwords)
+storage/system_config.json
+config.yml
+
+# Student data (contains real student personal information)
+storage/students.json
+storage/conversations.json
+storage/problem_bank.json
+storage/wrong_problems.json
+
+# Portable Python distribution (large, 2600+ files)
+python_portable/
+
+# Cloudflare tunnel binary (54MB)
+cloudflared.exe
+
+# Cloudflare tunnel config
+cloudflared_config/
+
+# Runtime files
+public_url.txt
+serveo_name.txt
+service_pids.txt
+
+# IDE settings
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Word temp files
+~$*.docx
+~$*.doc
+*.tmp
+
+# Environment
+.env
+.env.local

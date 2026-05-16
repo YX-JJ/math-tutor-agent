@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}茶山中学-教学管理面板{% endblock %}
+{% block body %}
+<div class="admin-layout">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>🎓 茶山中学-教学管理</h2>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="{{ url_for('teacher.dashboard') }}" class="nav-item active">📋 学生列表</a>
+            <a href="{{ url_for('teacher.problem_bank') }}" class="nav-item">📝 题库管理</a>
+            <a href="#" class="nav-item" id="nav-settings">⚙ 系统设置</a>
+            <a href="{{ url_for('auth.logout') }}" class="nav-item nav-logout">🚪 退出登录</a>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <div class="page-header">
+            <h1>学生管理面板</h1>
+            <button class="btn btn-primary" onclick="showAddStudentModal()">+ 添加学生</button>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-value">{{ stats.total_students }}</div>
+                <div class="stat-label">学生总数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ stats.avg_accuracy }}%</div>
+                <div class="stat-label">平均正确率</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ stats.active_today }}</div>
+                <div class="stat-label">今日活跃</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th style="text-align:center;">姓名</th>
+                        <th style="text-align:center;">薄弱环节</th>
+                        <th style="text-align:center;">正确率</th>
+                        <th style="text-align:center;">最近活跃</th>
+                        <th style="text-align:center; width:170px; white-space:nowrap;">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if students %}
+                    {% for student in students %}
+                    <tr>
+                        <td style="text-align:center;"><strong>{{ student.name }}</strong></td>
+                        <td style="text-align:center;">
+                            {% if student.weaknesses %}
+                            {% for w in student.weaknesses[:2] %}
+                            <span class="badge badge-warning">
+                                {% for t in topics %}{% if t.id == w.topic %}{{ t.name }}{% endif %}{% endfor %}
+                                ({{ w.severity }}/10)
+                            </span>
+                            {% endfor %}
+                            {% else %}
+                            <span class="text-muted">暂无记录</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align:center;">
+                            <div class="accuracy-bar">
+                                <div class="accuracy-fill" style="width: {{ (student.overall_accuracy or 0) * 100 }}%"></div>
+                            </div>
+                            <span>{{ ((student.overall_accuracy or 0) * 100) | int }}%</span>
+                        </td>
+                        <td style="text-align:center;" class="text-muted">{{ student.updated_at[:10] if student.updated_at else '-' }}</td>
+                        <td style="text-align:center; white-space:nowrap;">
+                            <a href="{{ url_for('teacher.student_detail', student_id=student.id) }}" class="btn btn-sm btn-outline">查看详情</a>
+                            <a href="{{ url_for('student.chat', student_id=student.id) }}" class="btn btn-sm btn-primary" style="margin-left:6px;" target="_blank">💬 对话</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr><td colspan="5" class="text-center text-muted">暂无学生，点击右上角"添加学生"开始</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </main>
+</div>
+
+<!-- Add Student Modal -->
+<div id="addStudentModal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>添加学生</h3>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('teacher.add_student') }}">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="studentName">学生姓名</label>
+                    <input type="text" id="studentName" name="name" required autofocus placeholder="请输入学生姓名">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal()">取消</button>
+                <button type="submit" class="btn btn-primary">确认添加</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Settings Modal -->
+<div id="settingsModal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>系统设置</h3>
+            <button class="modal-close" onclick="closeSettingsModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>DeepSeek API Key</label>
+                <input type="password" id="apiKey" class="form-input" placeholder="输入 API Key">
+                <small class="text-muted">API Key 将安全保存在本地</small>
+            </div>
+            <button class="btn btn-primary" onclick="saveSettings()">保存设置</button>
+            <div id="settingsMsg" style="margin-top:8px;"></div>
+        </div>
+    </div>
+</div>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}?v=2">
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

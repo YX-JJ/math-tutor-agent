@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+{% block title %}错题集 - 八年级数学教学智能体{% endblock %}
+{% block body %}
+<div class="admin-layout">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>🎓 茶山中学-教学管理</h2>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="{{ url_for('teacher.dashboard') }}" class="nav-item">📋 学生列表</a>
+            <a href="{{ url_for('teacher.problem_bank') }}" class="nav-item">📝 题库管理</a>
+            <a href="{{ url_for('teacher.wrong_problems') }}" class="nav-item active">📝 错题集</a>
+            <a href="{{ url_for('auth.logout') }}" class="nav-item nav-logout">🚪 退出登录</a>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <div class="page-header">
+            <h1>错题集</h1>
+            <div>
+                <button class="btn btn-primary" onclick="showAddWrongModal()">+ 添加错题</button>
+                <button class="btn btn-primary" onclick="downloadWrongSelected()" style="margin-left:8px;">📥 下载选中错题</button>
+                <span id="selectedCount" style="margin-left:8px; color:var(--text-muted); font-size:0.875rem;"></span>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <div class="card">
+            <div class="filter-bar" style="display:flex; flex-wrap:wrap; align-items:center; gap:8px;">
+                <span>按学生：</span>
+                <a href="{{ url_for('teacher.wrong_problems', topic=current_topic) }}" class="chip {% if not current_student %}chip-active{% endif %}">全部</a>
+                {% for s in students %}
+                <a href="{{ url_for('teacher.wrong_problems', student=s.id, topic=current_topic) }}" class="chip {% if current_student == s.id %}chip-active{% endif %}">{{ s.name }}</a>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="filter-bar" style="display:flex; flex-wrap:wrap; align-items:center; gap:8px;">
+                <span>按知识点：</span>
+                <a href="{{ url_for('teacher.wrong_problems', student=current_student) }}" class="chip {% if not current_topic %}chip-active{% endif %}">全部</a>
+                {% for t in topics %}
+                <a href="{{ url_for('teacher.wrong_problems', topic=t.id, student=current_student) }}" class="chip {% if current_topic == t.id %}chip-active{% endif %}">{{ t.name }}</a>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card">
+            {% if wrong_problems %}
+            <div style="margin-bottom:12px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+                <label style="cursor:pointer; font-size:0.875rem; white-space:nowrap;">
+                    <input type="checkbox" id="selectAll" onchange="toggleSelectAll()" checked> 全选题目
+                </label>
+                <label style="cursor:pointer; font-size:0.875rem; white-space:nowrap;">
+                    <input type="checkbox" id="selectAllAnswer" onchange="toggleAll('answer')" checked> 全选答案
+                </label>
+                <label style="cursor:pointer; font-size:0.875rem; white-space:nowrap;">
+                    <input type="checkbox" id="selectAllSteps" onchange="toggleAll('steps')" checked> 全选解题步骤
+                </label>
+                <label style="cursor:pointer; font-size:0.875rem; white-space:nowrap;">
+                    <input type="checkbox" id="selectAllHints" onchange="toggleAll('hints')" checked> 全选提示
+                </label>
+            </div>
+            <div class="problem-list">
+                {% for w in wrong_problems %}
+                <div class="problem-item" id="item-{{ w.id }}">
+                    <div style="display:flex; align-items:flex-start; gap:8px;">
+                        <input type="checkbox" class="problem-check" value="{{ w.id }}" onchange="updateCount()" checked style="margin-top:4px; flex-shrink:0;">
+                        <div style="flex:1; min-width:0;">
+                            <div class="problem-header">
+                                <span class="badge">
+                                    {% for t in topics %}{% if t.id == w.topic %}{{ t.name }}{% endif %}{% endfor %}
+                                </span>
+                                <span class="badge badge-warning">{{ w.student_name }}</span>
+                                <span class="difficulty">{{ '⭐' * (w.difficulty or 3) }}</span>
+                                <span class="text-muted text-sm">{{ w.created_at[:10] }}</span>
+                            </div>
+                            <div class="problem-question">{{ w.question }}</div>
+                            {% if w.student_answer %}
+                            <div class="problem-answer" style="color:#ef4444;">
+                                <strong>❌ 学生作答：</strong>{{ w.student_answer }}
+                            </div>
+                            {% endif %}
+                            {% if w.answer %}
+                            <div class="problem-answer" style="color:#10b981;">
+                                <strong>✅ 正确答案：</strong>{{ w.answer }}
+                            </div>
+                            {% endif %}
+                            {% if w.solution_steps %}
+                            <details class="solution-details">
+                                <summary>查看解题步骤</summary>
+                                <ol class="solution-steps">
+                                    {% for step in w.solution_steps.split('\n') %}{% if step.strip() %}
+                                    <li>{{ step.strip() }}</li>
+                                    {% endif %}{% endfor %}
+                                </ol>
+                            </details>
+                            {% endif %}
+                            {% if w.hints %}
+                            <details class="hints-details">
+                                <summary>查看提示</summary>
+                                <ul class="hints-list">
+                                    {% for hint in w.hints.split('\n') %}{% if hint.strip() %}
+                                    <li>{{ hint.strip() }}</li>
+                                    {% endif %}{% endfor %}
+                                </ul>
+                            </details>
+                            {% endif %}
+                            {% if w.reason %}
+                            <div class="text-muted text-sm" style="margin-top:4px;">错误原因：{{ w.reason }}</div>
+                            {% endif %}
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:4px; flex-shrink:0;" class="problem-options">
+                            {% if w.answer %}
+                            <label style="cursor:pointer; font-size:0.75rem; white-space:nowrap;"><input type="checkbox" class="opt-answer" data-pid="{{ w.id }}" onchange="updateCount()" checked> 答案</label>
+                            {% endif %}
+                            {% if w.solution_steps %}
+                            <label style="cursor:pointer; font-size:0.75rem; white-space:nowrap;"><input type="checkbox" class="opt-steps" data-pid="{{ w.id }}" onchange="updateCount()" checked> 解题步骤</label>
+                            {% endif %}
+                            {% if w.hints %}
+                            <label style="cursor:pointer; font-size:0.75rem; white-space:nowrap;"><input type="checkbox" class="opt-hints" data-pid="{{ w.id }}" onchange="updateCount()" checked> 提示</label>
+                            {% endif %}
+                            <form method="POST" action="{{ url_for('teacher.delete_wrong_problem', wp_id=w.id) }}" onsubmit="return confirm('确定删除此错题？')" style="margin-top:4px;">
+                                <button type="submit" class="btn btn-sm btn-danger" style="font-size:0.75rem;">删除</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-center text-muted" style="padding:40px;">
+                暂无错题。点击"添加错题"手动录入，或从对话分析中自动收集。
+            </p>
+            {% endif %}
+        </div>
+    </main>
+</div>
+
+<!-- Add Wrong Problem Modal -->
+<div id="addWrongModal" class="modal" style="display:none;">
+    <div class="modal-content" style="max-width:600px;max-height:85vh;overflow-y:auto;">
+        <div class="modal-header">
+            <h3>添加错题</h3>
+            <button class="modal-close" onclick="closeAddWrongModal()">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('teacher.add_wrong_problem') }}">
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>学生</label>
+                        <select name="student_id" id="wpStudent" class="form-input" onchange="updateWpStudentName()">
+                            <option value="">选择学生</option>
+                            {% for s in students %}
+                            <option value="{{ s.id }}">{{ s.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>知识点</label>
+                        <select name="topic" class="form-input">
+                            {% for t in topics %}
+                            <option value="{{ t.id }}">{{ t.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <input type="hidden" name="student_name" id="wpStudentName">
+                <div class="form-group">
+                    <label>题目</label>
+                    <textarea name="question" class="form-textarea" rows="3" required placeholder="错题内容"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>学生作答</label>
+                        <input type="text" name="student_answer" class="form-input" placeholder="学生的错误答案">
+                    </div>
+                    <div class="form-group">
+                        <label>正确答案</label>
+                        <input type="text" name="answer" class="form-input" placeholder="正确答案">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>解题步骤（每行一步）</label>
+                    <textarea name="solution_steps" class="form-textarea" rows="3" placeholder="步骤1&#10;步骤2&#10;步骤3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>提示（每行一条）</label>
+                    <textarea name="hints" class="form-textarea" rows="2" placeholder="提示1&#10;提示2"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>难度 (1-5)</label>
+                        <input type="number" name="difficulty" class="form-input" value="3" min="1" max="5">
+                    </div>
+                    <div class="form-group">
+                        <label>错误原因</label>
+                        <select name="reason" class="form-input">
+                            <option value="">请选择</option>
+                            <option value="概念不清">概念不清</option>
+                            <option value="计算错误">计算错误</option>
+                            <option value="审题不清">审题不清</option>
+                            <option value="公式记错">公式记错</option>
+                            <option value="步骤遗漏">步骤遗漏</option>
+                            <option value="其他">其他</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeAddWrongModal()">取消</button>
+                <button type="submit" class="btn btn-primary">确认添加</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}?v=2">
+<script src="{{ url_for('static', filename='js/math_render.js') }}"></script>
+<script>
+function updateCount() {
+    var checked = document.querySelectorAll('.problem-check:checked').length;
+    document.getElementById('selectedCount').textContent = checked > 0 ? '已选 ' + checked + ' 题' : '';
+}
+
+function toggleSelectAll() {
+    var all = document.getElementById('selectAll').checked;
+    document.querySelectorAll('.problem-check').forEach(function(cb) { cb.checked = all; });
+    updateCount();
+}
+
+function toggleAll(type) {
+    var cls = type === 'answer' ? '.opt-answer' : type === 'steps' ? '.opt-steps' : '.opt-hints';
+    var all = document.getElementById('selectAll' + type.charAt(0).toUpperCase() + type.slice(1));
+    document.querySelectorAll(cls).forEach(function(cb) { cb.checked = all.checked; });
+    updateCount();
+}
+
+function downloadWrongSelected() {
+    var items = [];
+    document.querySelectorAll('.problem-check:checked').forEach(function(cb) {
+        var pid = cb.value;
+        var item = document.getElementById('item-' + pid);
+        var opt = {
+            id: pid,
+            include_answer: item.querySelector('.opt-answer') ? item.querySelector('.opt-answer').checked : false,
+            include_steps: item.querySelector('.opt-steps') ? item.querySelector('.opt-steps').checked : false,
+            include_hints: item.querySelector('.opt-hints') ? item.querySelector('.opt-hints').checked : false,
+        };
+        items.push(opt);
+    });
+    if (items.length === 0) { alert('请至少勾选一道错题'); return; }
+
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = "{{ url_for('teacher.export_wrong_problems') }}";
+    form.target = '_blank';
+
+    var inputData = document.createElement('input');
+    inputData.type = 'hidden';
+    inputData.name = 'export_data';
+    inputData.value = JSON.stringify(items);
+    form.appendChild(inputData);
+
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+}
+
+function showAddWrongModal() {
+    document.getElementById('addWrongModal').style.display = 'flex';
+}
+function closeAddWrongModal() {
+    document.getElementById('addWrongModal').style.display = 'none';
+}
+
+function updateWpStudentName() {
+    var sel = document.getElementById('wpStudent');
+    document.getElementById('wpStudentName').value = sel.options[sel.selectedIndex].text;
+}
+
+window.onclick = function(e) {
+    if (e.target.classList.contains('modal')) e.target.style.display = 'none';
+};
+
+updateCount();
+</script>
+{% endblock %}

@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% block title %}数学辅导 - {{ student.name }}{% endblock %}
+{% block extra_head %}
+<style>
+.resize-handle {
+  width: 6px; cursor: col-resize; background: #e5e7eb;
+  flex-shrink: 0; transition: background .2s;
+}
+.resize-handle:hover, .resize-handle.dragging { background: #4f46e5; }
+</style>
+{% endblock %}
+{% block body %}
+<div class="chat-layout">
+    <aside class="chat-sidebar" id="chatSidebar">
+        <div class="chat-sidebar-header">
+            <h2>🧑‍🏫 小数学</h2>
+            <p class="text-sm text-muted">八年级数学辅导</p>
+        </div>
+        <div class="student-info-card">
+            <div class="student-avatar">{{ student.name[0] }}</div>
+            <div class="student-name">{{ student.name }}</div>
+        </div>
+        <div class="session-list">
+            <h4>历史会话</h4>
+            {% if sessions %}
+            {% for sess in sessions %}
+            <div class="session-item {% if sess.id == active_session_id %}active{% endif %}"
+                 onclick="location.href='?session_id={{ sess.id }}'">
+                <div class="session-date">{{ sess.session_start[:10] }} {{ sess.session_start[11:16] }}</div>
+                <div class="session-topic">{% if sess.topic_focus %}{% for t in topics %}{% if t.id == sess.topic_focus %}{{ t.name }}{% endif %}{% endfor %}{% else %}综合辅导{% endif %}</div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p class="text-muted text-sm">暂无历史会话</p>
+            {% endif %}
+        </div>
+    </aside>
+
+    <!-- Resize handle between sidebar and chat -->
+    <div class="resize-handle" id="resizeHandle"></div>
+
+    <main class="chat-main">
+        <div class="chat-header">
+            <h3>{{ student.name }} 的数学辅导</h3>
+            <div class="chat-header-info">
+                {% if topic_focus %}
+                {% for t in topics %}{% if t.id == topic_focus %}<span class="badge badge-primary">🎯 {{ t.name }}</span>{% endif %}{% endfor %}
+                {% endif %}
+                {% if student.weaknesses %}
+                <span>薄弱点：</span>
+                {% for w in student.weaknesses[:2] %}
+                <span class="badge badge-warning">{% for t in topics %}{% if t.id == w.topic %}{{ t.name }}{% endif %}{% endfor %}</span>
+                {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            <div class="chat-empty" id="chatEmpty">
+                <div class="chat-empty-icon">📐</div>
+                <h3>你好，{{ student.name }}！</h3>
+                <p>我是你的数学辅导老师"小数学"，今天想学习什么内容？</p>
+                <div class="topic-chips" id="topicChips">
+                    <button class="chip" onclick="sendQuick('我想练习一元一次方程')">一元一次方程</button>
+                    <button class="chip" onclick="sendQuick('帮我复习三角形的知识')">三角形</button>
+                    <button class="chip" onclick="sendQuick('我想做几道函数题')">一次函数</button>
+                    <button class="chip" onclick="sendQuick('帮我讲解二元一次方程组')">方程组</button>
+                    <button class="chip" onclick="sendQuick('我想练习因式分解')">因式分解</button>
+                    <button class="chip" onclick="sendQuick('帮我复习概率和统计')">概率与统计</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-input-area">
+            <div class="chat-input-wrapper">
+                <textarea id="messageInput" class="chat-input" placeholder="输入你的数学问题..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();doSend();}"></textarea>
+                <button id="sendBtn" class="btn btn-primary chat-send-btn" title="发送" onclick="doSend()">➤</button>
+            </div>
+            <div class="chat-input-hint">按 Enter 发送，Shift+Enter 换行</div>
+        </div>
+    </main>
+</div>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+<script src="{{ url_for('static', filename='js/math_render.js') }}"></script>
+<script>
+var _studentId = '{{ student.id }}';
+var _sessionId = '{{ active_session_id or "" }}';
+var _topicFocus = '{{ topic_focus or "" }}';
+var _waiting = false;
+
+function _el(id) { return document.getElementById(id); }
+
+function scrollChatBottom() {
+    var el = _el('chatMessages');
+    if (el) el.scrollTop = el.scrollHeight;
+}
+
+function _escapeText(text) {
+    return text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>');
+}
+
+function formatChatMsg(text) {
+    var parts = [];
+    var lastIdx = 0;
+    var re = /```(?:svg)?\s*\n?([\s\S]*?)```/g;
+    var m;
+    while ((m = re.exec(text)) !== null) {
+        if (m.index > lastIdx)
+            parts.push('<p>' + _escapeText(text.substring(lastIdx, m.index)) + '</p>');
+        var code = m[1].trim();
+        if (/<svg[\s\S]*<\/svg>/i.test(code)) {
+            code = code.replace(/<script[\s\S]*?<\/script>/gi, '');
+            parts.push('<div class="svg-diagram">' + code + '</div>');
+        } else {
+            parts.push('<pre><code>' + _escapeText(code) + '</code></pre>');
+        }
+        lastIdx = m.index + m[0].length;
+    }
+    if (lastIdx < text.length)
+        parts.push('<p>' + _escapeText(text.substring(lastIdx)) + '</p>');
+    return parts.join('') || '<p></p>';
+}
+
+function addChatMsg(role, content) {
+    var emptyEl = _el('chatEmpty');
+    var chipsEl = _el('topicChips');
+    var msgsEl = _el('chatMessages');
+    if (emptyEl) emptyEl.style.display = 'none';
+    if (chipsEl) chipsEl.style.display = 'none';
+    var div = document.createElement('div');
+    div.className = 'message message-' + role;
+    div.innerHTML = '<div class="message-bubble">' + formatChatMsg(content) + '</div>';
+    if (msgsEl) msgsEl.appendChild(div);
+    if (typeof renderMathInElement === 'function') {
+        try { renderMathInElement(div); } catch(e) {}
+    }
+    scrollChatBottom();
+}
+
+function showChatTyping() {
+    var msgsEl = _el('chatMessages');
+    if (!msgsEl) return;
+    var div = document.createElement('div');
+    div.className = 'message message-assistant';
+    div.id = 'typingIndicator';
+    div.innerHTML = '<div class="message-bubble typing-indicator"><div class="typing-dots"><span></span><span></span><span></span></div></div>';
+    msgsEl.appendChild(div);
+    scrollChatBottom();
+}
+
+function hideChatTyping() {
+    var el = _el('typingIndicator');
+    if (el) el.remove();
+}
+
+// Global send function - called from HTML onclick/onkeydown
+function doSend() {
+    if (_waiting) return;
+    var mi = _el('messageInput');
+    if (!mi) return;
+    var text = mi.value.trim();
+    if (!text) return;
+
+    var sb = _el('sendBtn');
+    _waiting = true;
+    if (sb) { sb.disabled = true; sb.textContent = '...'; }
+    mi.value = '';
+    mi.style.height = 'auto';
+
+    addChatMsg('user', text);
+    showChatTyping();
+
+    fetch('/student/chat/' + _studentId + '/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, session_id: _sessionId, topic: _topicFocus })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        hideChatTyping();
+        if (data.error) { addChatMsg('assistant', '错误：' + data.error); }
+        else {
+            addChatMsg('assistant', data.response);
+            if (!_sessionId && data.session_id) _sessionId = data.session_id;
+        }
+        _waiting = false;
+        var b = _el('sendBtn'); if (b) { b.disabled = false; b.textContent = '➤'; }
+        var m = _el('messageInput'); if (m) m.focus();
+    })
+    .catch(function(e) {
+        hideChatTyping();
+        addChatMsg('assistant', '网络连接失败，请检查API Key和网络。');
+        _waiting = false;
+        var b = _el('sendBtn'); if (b) { b.disabled = false; b.textContent = '➤'; }
+        var m = _el('messageInput'); if (m) m.focus();
+    });
+}
+
+// Global quick-send - called from topic chip onclick
+function sendQuick(text) {
+    var mi = _el('messageInput');
+    if (mi) { mi.value = text; }
+    doSend();
+}
+
+// Auto-resize textarea
+(function() {
+    var mi = _el('messageInput');
+    if (mi) {
+        mi.oninput = function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        };
+        mi.focus();
+    }
+})();
+
+// Load history if resuming session
+if (_sessionId) {
+    fetch('/student/session/' + _sessionId + '/messages')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.messages && data.messages.length > 0) {
+                data.messages.forEach(function(m) { addChatMsg(m.role, m.content); });
+            }
+        })
+        .catch(function(e) { console.error(e); });
+}
+
+// Sidebar resize
+(function() {
+    var sidebar = _el('chatSidebar');
+    var handle = _el('resizeHandle');
+    if (!sidebar || !handle) return;
+    var startX, startW;
+    handle.onmousedown = function(e) {
+        e.preventDefault();
+        startX = e.clientX;
+        startW = sidebar.offsetWidth;
+        handle.classList.add('dragging');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+    };
+    document.addEventListener('mousemove', function(e) {
+        if (!handle.classList.contains('dragging')) return;
+        var w = startW + (e.clientX - startX);
+        sidebar.style.width = Math.max(180, Math.min(500, w)) + 'px';
+    });
+    document.addEventListener('mouseup', function() {
+        if (handle.classList.contains('dragging')) {
+            handle.classList.remove('dragging');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        }
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,27 @@
+/* Dashboard-specific overrides and extensions */
+
+/* Center table headers */
+.table th { text-align: center !important; white-space: nowrap !important; }
+.table td { text-align: center !important; }
+
+/* Accuracy bar in table */
+.accuracy-bar { display: inline-block; width: 60px; height: 6px; background: var(--border); border-radius: 3px; margin-right: 6px; vertical-align: middle; }
+.accuracy-fill { height: 100%; background: var(--success); border-radius: 3px; transition: width .3s; }
+
+/* Severity bar */
+.severity-bar { display: inline-block; width: 60px; height: 6px; background: var(--border); border-radius: 3px; margin-right: 6px; vertical-align: middle; }
+.severity-fill { height: 100%; border-radius: 3px; }
+.severity-1,.severity-2,.severity-3 { background: #10b981; }
+.severity-4,.severity-5,.severity-6 { background: #f59e0b; }
+.severity-7,.severity-8,.severity-9,.severity-10 { background: #ef4444; }
+
+/* Filter bar */
+.filter-bar .chip { margin-bottom: 4px; }
+
+/* Problem bank */
+.problem-item:last-child { border-bottom: none; }
+
+/* Responsive fixes */
+@media (max-width: 768px) {
+  .form-row { flex-direction: column; }
+}

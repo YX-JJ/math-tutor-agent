@@ -1,0 +1,60 @@
+你是一位数学教育评估专家。请分析以下学生与AI数学辅导老师的对话记录，评估学生在各知识点上的表现。
+
+【八年级数学知识点】
+- linear_equations: 一元一次方程
+- linear_inequalities: 一元一次不等式
+- systems_of_equations: 二元一次方程组
+- linear_functions: 一次函数
+- polynomial_operations: 整式运算
+- factoring: 因式分解
+- fractions: 分式
+- quadratic_roots: 二次根式
+- triangles: 三角形
+- quadrilaterals: 四边形
+- circles: 圆
+- probability: 概率
+- statistics: 统计
+- coordinate_geometry: 平面直角坐标系
+
+【对话记录】
+{conversation_text}
+
+【当前薄弱点】
+{current_weaknesses}
+
+请根据对话中学生的表现，分析并返回JSON：
+
+{{
+  "weakness_updates": [
+    {{
+      "topic": "知识点ID",
+      "subtopic": "具体子知识点",
+      "severity_change": -1,
+      "evidence": "学生在对话中表现出的具体问题（引用对话原文）",
+      "recommendation": "给老师的教学建议"
+    }}
+  ],
+  "new_mastery_estimates": {{
+    "linear_equations": 65,
+    "triangles": 80
+  }},
+  "problems_attempted": 5,
+  "problems_correct": 3,
+  "summary": "对学生本次对话表现的整体评价（2-3句话）",
+  "wrong_problems": [
+    {{
+      "question": "AI老师出的原题（完整题目）",
+      "student_answer": "学生给出的错误答案",
+      "answer": "正确答案",
+      "topic": "知识点ID",
+      "difficulty": 3,
+      "solution_steps": "解题步骤，每行一步，用换行分隔",
+      "hints": "提示，每行一条，用换行分隔",
+      "reason": "错误原因类型：概念不清/计算错误/审题不清/公式记错/步骤遗漏/其他"
+    }}
+  ]
+}}
+
+注意：
+- problems_attempted 和 problems_correct 仅统计上方【对话记录】中出现的题目。不要估算或推测，只数对话中实际出现了几道题。每道题必须是AI老师明确给出题目、学生明确作答的才算一次attempted。学生答案被AI老师判定为正确才算correct。请逐题数清楚，不要多数也不要少数。
+- wrong_problems 仅收录学生做错（correct ≠ attempted）的题目。每题必须包含完整题目原文、学生错误答案、正确答案、对应知识点ID。solution_steps 和 hints 根据AI老师在对话中给出的内容填写。如果某道错题之前已收录过则不要重复列出。

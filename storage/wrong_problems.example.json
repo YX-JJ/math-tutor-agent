@@ -1,0 +1,15 @@
+{
+  "wrong_problems": [
+    {
+      "id": "wrong_001",
+      "student_id": "student_001",
+      "problem": "因式分解：$a^2b + ab^2$",
+      "student_answer": "ab",
+      "correct_answer": "$ab(a+b)$",
+      "reason_category": "步骤缺失",
+      "reason_detail": "只找到公因式但没有完成因式分解",
+      "created_at": "2026-05-14",
+      "topic": "factoring"
+    }
+  ]
+}

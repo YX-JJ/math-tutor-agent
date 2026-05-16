@@ -1,0 +1,13 @@
+{
+  "deepseek_api_key": "sk-your-api-key-here",
+  "deepseek_api_base": "https://api.deepseek.com/v1",
+  "model": "deepseek-chat",
+  "max_tokens": 2048,
+  "temperature_tutoring": 0.7,
+  "temperature_problem_gen": 0.9,
+  "teacher_username": "admin",
+  "teacher_password_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+  "secret_key": "change-me-to-a-random-string-in-production",
+  "session_timeout_minutes": 60,
+  "max_history_messages": 20
+}
